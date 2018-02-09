@@ -984,7 +984,7 @@ SetOutputLevel:
  .clamped:
     mov cl,3
     shl al,cl
-    add cl,7
+    add al,7
  .mute:
     mov bl,PARAM_OUTPUT_LEVEL   ; Sierra's driver uses a sysex, would it work just as well to use CC#7?
     mov bh,al
