@@ -7,6 +7,12 @@ adventure games using Sierra On-Line's SCI0 interpreter.
 
 [1]: https://github.com/roybaer/foss_sci_drivers
 
+## Build Instructions
+
+The FB-01 driver is known to build with NASM 2.12.01 and newer on
+Linux. Simply type `make` at a command prompt. Yasm should also work, try
+`make ASM=yasm`.
+
 ## Yamaha FB-01 FM Sound Generator
 
 In 2017 I acquired a Yamaha FB-01 sound generator to add to my stack of
@@ -73,6 +79,10 @@ SOUND.001, looping once and fading at the start of the first loop. This
 was intended to test the above FB-01 driver but could be expanded to be a
 generic SCI0 sound resource player.
 
+### Build Instructions
+
+sci0play is not built by default; try `make sci0play.exe` if Open Watcom
+is installed and configured.
+
 ### TODO
 * Command-line options to select the driver, sound resource, loop count, fade, etc.
-* A proper Makefile (currently build.sh is used).
