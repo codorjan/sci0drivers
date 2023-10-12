@@ -21,6 +21,7 @@
 #include <conio.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
@@ -32,6 +33,8 @@
 #define SND_STATE_INVALID 3
 
 #define PIT_FREQ 1193182
+#define DRIVER_SIG 0x87654321   /* signature at byte 4 in driver */
+#define SOUND_SIG 0x0084        /* signature at byte 0 of resource file */
 
 char __far *driver;         /* pointer to driver */
 char __far *patch;          /* pointer to patch resource, if necessary */
@@ -257,7 +260,6 @@ void SeekSound(unsigned int position, int signal) {
 }
 
 int main() {
-    struct stat sbuf;
     FILE *driver_file, *patch_file, *sound_file;
     char patch_name[10];
     unsigned int driver_size, patch_size, sound_size;
@@ -266,51 +268,66 @@ int main() {
     int patchno;
     int polyphony;
     int loop_count;
+    int times_played;
+    int do_fade;
 
     char *driver_name = "fb01.drv";
     char *sound_name = "sound.001";
+    loop_count = 1;                     /* loop this many times (0 = play once) */
+    do_fade = 1;                        /* nonzero to fade after last loop */
 
     /* check that the driver exists and how large it is */
     driver_size = fsize(driver_name);
     if (driver_size == -1) {
-        fprintf(stderr, "fsize failed\n");
+        fprintf(stderr, "Unable to get size of file %s: %s\n",
+         driver_name, strerror(errno));
         exit(2);
     }
     /* allocate space for driver */
     driver = (char __far *)alignmalloc(driver_size);
     if (driver == NULL) {
-        fprintf(stderr, "malloc(driver_size) failed\n");
+        fprintf(stderr, "Unable to allocate %d bytes of memory\n",
+         driver_size);
         exit(3);
     }
     /* load entire driver into memory */
     driver_file = fopen(driver_name, "rb");
     if (driver_file == NULL) {
-        fprintf(stderr, "fopen failed\n");
+        fprintf(stderr, "Unable to open file %s: %s\n",
+         driver_name, strerror(errno));
         exit(4);
     }
     if (fread(driver, 1, driver_size, driver_file) != driver_size) {
-        perror("fread failed");
+        fprintf(stderr, "Unable to read file %s: %s\n",
+         driver_name, strerror(errno));
         exit(5);
     }
     fclose(driver_file);
+    /* check signature dword */
+    if ( ((uint32_t*)driver)[1] != DRIVER_SIG) {
+        fprintf(stderr, "File %s is not an SCI0 sound driver\n",
+         driver_name);
+        exit(11);
+    }
 
     /* get driver identification */
     shortname_len = driver[9];  /* pascal-style string, size is at byte 9 */
     shortname = (char *)malloc(shortname_len + 1);
     if (shortname == NULL) {
-        fprintf(stderr, "malloc(shortname_len + 1) failed\n");
+        fprintf(stderr, "Unable to allocate %d bytes of memory\n",
+         shortname_len + 1);
         exit(6);
     }
     strlcpy(shortname, driver + 9 + 1, shortname_len + 1);
     longname_len = driver[9 + shortname_len + 1];   /* pascal-style string, size is next byte past shortname */
     longname = (char *)malloc(longname_len + 1);
     if (longname == NULL) {
-        fprintf(stderr, "malloc(longname_len + 1) failed\n");
+        fprintf(stderr, "Unable to allocate %d bytes of memory\n",
+         longname_len + 1);
         exit(7);
     }
     strlcpy(longname, driver + 9 + 1 + shortname_len + 1, longname_len + 1);
-    printf("%x %x\n", shortname_len, longname_len);
-    printf("%s = %d\n%s (%s)\n", driver_name, driver_size, longname, shortname);
+    printf("Driver: %s (%s)\n", longname, shortname);
 
     /* setup heap */
     sciheap.idx00 = 0;
@@ -331,26 +348,36 @@ int main() {
     /* check that the sound resource exists and how large it is */
     sound_size = fsize(sound_name);
     if (sound_size == -1) {
-        fprintf(stderr, "fsize failed\n");
+        fprintf(stderr, "Unable to get size of file %s: %s\n",
+         sound_name, strerror(errno));
         exit(2);
     }
     /* allocate space for resource */
     snd = (char __far *)malloc(sound_size);
     if (snd == NULL) {
-        fprintf(stderr, "malloc(sound_size) failed\n");
+        fprintf(stderr, "Unable to allocate %d bytes of memory\n",
+         sound_size);
         exit(3);
     }
     /* load entire sound resource into memory */
     sound_file = fopen(sound_name, "rb");
     if (sound_file == NULL) {
-        perror("fopen failed");
+        fprintf(stderr, "Unable to open file %s: %s\n",
+         sound_name, strerror(errno));
         exit(8);
     }
     if (fread(snd, 1, sound_size, sound_file) != sound_size) {
-        perror("fread failed");
+        fprintf(stderr, "Unable to read file %s: %s\n",
+         sound_name, strerror(errno));
         exit(5);
     }
     fclose(sound_file);
+    /* check signature word */
+    if ( ((uint16_t*)snd)[0] != SOUND_SIG) {
+        fprintf(stderr, "File %s is not an SCI0 sound resource\n",
+         sound_name);
+        exit(11);
+    }
 
     if (patchno != -1) {                            /* -1 signifies no patch resource needed */
         snprintf(patch_name, 10, "patch.%03d", patchno);
@@ -359,23 +386,27 @@ int main() {
         /* check that the patch resource exists and how large it is */
         patch_size = fsize(patch_name);
         if (patch_size == -1) {
-            fprintf(stderr, "fsize failed\n");
+            fprintf(stderr, "Unable to open file %s: %s\n",
+             patch_name, strerror(errno));
             exit(2);
         }
         /* allocate space for resource */
         patch = (char __far *)malloc(patch_size);
         if (patch == NULL) {
-            fprintf(stderr, "malloc(patch_size) failed\n");
+            fprintf(stderr, "Unable to allocate %d bytes of memory\n",
+             patch_size);
             exit(3);
         }
         /* load entire patch resource into memory */
         patch_file = fopen(patch_name, "rb");
         if (patch_file == NULL) {
-            perror("fopen failed");
+            fprintf(stderr, "Unable to open file %s: %s\n",
+             patch_name, strerror(errno));
             exit(8);
         }
         if (fread(patch, 1, patch_size, patch_file) != patch_size) {
-            perror("fread failed");
+            fprintf(stderr, "Unable to read file %s: %s\n",
+             patch_name, strerror(errno));
             exit(5);
         }
         fclose(patch_file);
@@ -392,13 +423,12 @@ int main() {
         exit(10);
     }
 
+    printf("Playing %s...\n", sound_name);
+
     SetVolume(15);
 
-    timer_div = PIT_FREQ / 60;
-
-    loop_count = 0;
-
     /* save old interrupt handler and set timer to 60Hz */
+    timer_div = PIT_FREQ / 60;
     CLI();                              /* prevent hardware from messing with stuff */
     old_int8h = _dos_getvect(0x8);      /* save IRQ0 handler */
     _dos_setvect(0x8, int8h_handler);   /* install new IRQ0 handler */
@@ -407,27 +437,33 @@ int main() {
     tic_fired = 0;
     STI();                              /* timer can run now */
 
-    while (loop_count < 1) {
+    times_played = 0;                   /* running count of times played */
+
+    while (times_played <= loop_count) {
         HLT();
         if (tic_fired) {
             DoSoundEvent();
             tic_fired = 0;
         }
         if (sciheap.signal == -1) {
-            printf("Loop\n");
-            loop_count++;
+            times_played++;
+            if (times_played <= loop_count) {
+                printf("Loop\n");
+            }
             sciheap.signal = 0;
         }
     }
 
-    printf("Fade\n");
-    FadeOut();
-    while (sciheap.faded != 0) {
-        STI();
-        HLT();
-        if (tic_fired) {
-            DoSoundEvent();
-            tic_fired = 0;
+    if (do_fade) {
+        printf("Fade\n");
+        FadeOut();
+        while (sciheap.faded != 0) {
+            STI();
+            HLT();
+            if (tic_fired) {
+                DoSoundEvent();
+                tic_fired = 0;
+            }
         }
     }
 
