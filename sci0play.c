@@ -259,22 +259,45 @@ void SeekSound(unsigned int position, int signal) {
     DriverInterface(18, &dummy_ax, &dummy_cx);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
     FILE *driver_file, *patch_file, *sound_file;
     char patch_name[10];
     unsigned int driver_size, patch_size, sound_size;
     char *shortname, *longname;
     char shortname_len, longname_len;
+    int opt;
     int patchno;
     int polyphony;
     int loop_count;
     int times_played;
     int do_fade;
 
+    /* set defaults */
     char *driver_name = "fb01.drv";
     char *sound_name = "sound.001";
-    loop_count = 1;                     /* loop this many times (0 = play once) */
-    do_fade = 1;                        /* nonzero to fade after last loop */
+    loop_count = 0;                     /* loop this many times (0 = play once) */
+    do_fade = 0;                        /* nonzero to fade after last loop */
+
+    while ( (opt = getopt(argc, argv, "d:fl:")) != -1 ) {
+        switch (opt) {
+        case 'd':
+            driver_name = optarg;
+            break;
+        case 'f':
+            do_fade = 1;
+            break;
+        case 'l':
+            loop_count = atoi(optarg);
+            break;
+        default:
+            fprintf(stderr, "Usage: %s [-d driver] [-f] [-l #] sound\n",
+             argv[0]);
+            exit(1);
+        }
+    }
+    if (optind < argc) {
+        sound_name = argv[optind];
+    }
 
     /* check that the driver exists and how large it is */
     driver_size = fsize(driver_name);
@@ -423,7 +446,18 @@ int main() {
         exit(10);
     }
 
-    printf("Playing %s...\n", sound_name);
+    printf("Playing %s", sound_name);
+    if (loop_count != 0) {
+        printf(", looping %d time%s", loop_count, loop_count > 1 ? "s" : "");
+    }
+    if (do_fade != 0) {
+        if (loop_count != 0) {
+            printf(", fading after last loop");
+        } else {
+            printf(", fading afterwards");
+        }
+    }
+    printf("...\n");
 
     SetVolume(15);
 
