@@ -73,11 +73,36 @@ graphical adventure game but uses SCI0 sound drivers).
 ## sci0play
 
 This is a C program for Open Watcom v2.0 (possibly with earlier versions)
-that loads FB01.DRV into memory along with its associated patch file (if
-necessary; with the above driver it will be PATCH.002) and plays sound
-SOUND.001, looping once and fading at the start of the first loop. This
-was intended to test the above FB-01 driver but could be expanded to be a
-generic SCI0 sound resource player.
+that loads an SCI0 sound driver (FB01.DRV by default) into memory along with
+its associated patch file (if necessary; with FB01.DRV it will be PATCH.002)
+and plays the sound given on the command line (SOUND.001 by default) once. The
+sound can optionally be looped and faded after the final playthrough.
+
+### Usage
+
+> sci0play [-d _driver file_] [-l _loop count_] [-f] [_sound file_]
+
+where _driver file_ is the filename of the sound driver (e.g. `JR.DRV`),
+_loop count_ is the number of times to loop the file (`0` to play the file
+once) and `-f` will play the file one additional time, fading out immediately.
+_sound file_ is the filename of an SCI0 sound resource (e.g. `SOUND.006`).
+
+(Resources can be extracted from the game files using [SCI Resource
+Viewer][6].)
+
+[6]: http://sci.sierrahelp.com/Tools/SCITools.html#SCIResourceViewer
+
+### Examples
+
+> sci0play
+
+plays the sound in SOUND.001 once, without fading, using the above FB-01
+driver.
+
+> sci0play -d JR.DRV -l 1 -f SOUND.006
+
+plays the sound in SOUND.006 twice (i.e. looping once) then loops again
+but fades out immediately using the PCjr/Tandy 1000 driver in JR.DRV.
 
 ### Build Instructions
 
@@ -85,4 +110,4 @@ sci0play is not built by default; try `make sci0play.exe` if Open Watcom
 is installed and configured.
 
 ### TODO
-* Command-line options to select the driver, sound resource, loop count, fade, etc.
+* Allow the user to pause/stop playback using the keyboard.
