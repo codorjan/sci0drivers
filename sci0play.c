@@ -34,15 +34,16 @@
 
 #define PIT_FREQ 1193182
 #define DRIVER_SIG 0x87654321   /* signature at byte 4 in driver */
-#define SOUND_SIG 0x0084        /* signature at byte 0 of resource file */
+#define SOUND_SIG 0x84          /* signature at byte 0 of resource file */
+#define PATCH_SIG 0x89          /* signature at byte 0 of resource file */
 
-char __far *driver;         /* pointer to driver */
-char __far *patch;          /* pointer to patch resource, if necessary */
-char __far *snd;            /* pointer to sound data */
+char __far *driver;             /* pointer to driver */
+char __far *patch;              /* pointer to patch resource, if necessary */
+char __far *snd;                /* pointer to sound data */
 
-unsigned int timer_div;     /* PIT timer divisor */
-unsigned long timer_count;  /* elapsed timer tics */
-unsigned int tic_fired;     /* flag that a midi tick has fired */
+uint16_t timer_div;             /* PIT timer divisor */
+volatile uint32_t timer_count;  /* elapsed timer tics */
+volatile uint8_t tic_fired;     /* flag that a midi tick has fired */
 
 struct sciheap_s {          /* used to pass data to/from driver */
     uint16_t idx00;
@@ -395,8 +396,8 @@ int main(int argc, char *argv[]) {
         exit(5);
     }
     fclose(sound_file);
-    /* check signature word */
-    if ( ((uint16_t*)snd)[0] != SOUND_SIG) {
+    /* check signature byte */
+    if ((uint8_t)snd[0] != SOUND_SIG) {
         fprintf(stderr, "File %s is not an SCI0 sound resource\n",
          sound_name);
         exit(11);
@@ -433,6 +434,12 @@ int main(int argc, char *argv[]) {
             exit(5);
         }
         fclose(patch_file);
+        /* check signature byte */
+        if ((uint8_t)patch[0] != PATCH_SIG) {
+            fprintf(stderr, "File %s is not an SCI0 patch resource\n",
+             sound_name);
+            exit(11);
+        }
     }
 
     if (InitDevice() == -1) {
